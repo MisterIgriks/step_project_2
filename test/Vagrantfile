@@ -1,0 +1,48 @@
+Vagrant.configure("2") do |config|
+  config.vm.provision "shell", inline: "echo Hello"
+
+  config.vm.define "VM1" do |vm1|
+  config.vm.synced_folder "C:/Program Files/Vagrant/step", "/home/vagrant/data"
+  config.vm.synced_folder "C:/Users/1014627620/.ssh", "/home/vagrant/.ssh"
+    vm1.vm.box = "bento/ubuntu-22.04"
+    vm1.vm.network "private_network", type: "static", ip: "192.168.1.10"
+    vm1.vm.hostname = "VM1"
+    vm1.vm.provision "shell", inline: <<-SHELL
+      sudo apt-get update
+      sudo apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg-agent \
+        software-properties-common
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+      sudo add-apt-repository \
+        "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) \
+        stable"
+      sudo apt-get update
+      sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+      sudo usermod -aG docker vagrant
+      sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      sudo chmod +x /usr/local/bin/docker-compose
+      cd /home/vagrant/data/jenkins_server/
+      sudo docker compose up -d
+    SHELL
+  end
+
+  config.vm.define "VM2" do |vm2|
+  config.vm.synced_folder "C:/Program Files/Vagrant/step", "/home/vagrant/data"  
+  config.vm.synced_folder "C:/Users/1014627620/.ssh", "/home/vagrant/.ssh"
+    vm2.vm.box = "bento/ubuntu-22.04"
+    vm2.vm.network "private_network", type: "static", ip: "192.168.1.11"
+    vm2.vm.hostname = "VM2"
+    vm2.vm.provision "shell", inline: <<-SHELL
+      sudo apt update
+      sudo apt-get install -y docker.io
+      sudo usermod -aG docker vagrant
+      sudo systemctl enable docker
+      sudo apt-get install openjdk-19-jdk
+               
+    SHELL
+  end
+end

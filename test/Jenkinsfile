@@ -1,0 +1,67 @@
+pipeline {
+    agent { label 'slave' }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Загружаем код из GitLab'
+                git branch: 'main',
+                    credentialsId: 'gitlab',
+                    url: 'git@gitlab.com:misterigriks/test.git'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Запускаем тесты'
+                dir('lesson-20240215/python') {
+                    script {
+                        def result = sh(script: 'python3 -m unittest discover -v', returnStatus: true)
+                        boolean TESTS_PASSED = (result == 0)
+                        if (!TESTS_PASSED) {
+                            currentBuild.result = 'UNSTABLE'
+                            echo 'Тест не пройден'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Build Docker') {
+            steps {
+                echo 'Создаем образ Docker'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USER')]) {
+                    dir('lesson-20240215/python') {
+                        sh """
+                            docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+                            docker build -t misterigriks/step_project:latest .
+                        """
+                    }
+                }
+            }
+        }
+        stage('Push') {
+            steps {
+                echo 'Отправляем образ в Docker Hub'
+                script {
+                    if (currentBuild.result != 'UNSTABLE') {
+                        withCredentials([usernamePassword(credentialsId: 'dockerhub', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USER')]) {
+                            sh """
+                                docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+                                docker push misterigriks/step_project:latest
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                if (currentBuild.result == 'UNSTABLE' && !currentBuild.getChangeSets()) {
+                    echo 'Образ не отправлен в Docker Hub, Тест не пройден'
+                }
+            }
+        }
+    }
+}
+
